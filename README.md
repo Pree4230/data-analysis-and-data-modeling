@@ -1,3 +1,5 @@
 # data-analysis-and-data-modeling
-Performed exploratory data analysis to understand the dataset and designed different machine learning models like decision trees, random forest, Neural networks to predict customer order conversions.
- Performed K-means and hierarchical clustering for customer segmentation. Also, designed recommender system using correlation matrix to make recommendations to customer.
+Performed exploratory data analysis. Designed different analytical models like decision trees and random forest to
+predict whether the customers would book with the travel company.
+Performed K-fold cross validation on analytical models to recommend the best analytical model to the travel
+company.
