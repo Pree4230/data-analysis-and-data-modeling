@@ -1,0 +1,165 @@
+---
+title: "Assignment 3"
+output: html_document
+---
+```{r }
+#Loading the datasets
+library(tidyverse)
+library(readxl)
+library(dplyr)
+library(rpart)
+install.packages("randomForest")
+library(randomForest)
+install.packages("ROCR")
+library(ROCR)
+```
+
+```{r}
+#Reading the dataset into R
+stc <- read_excel("C:\\Users\\pnanda4\\Desktop\\excel\\data_mining.xlsx")
+df <- stc
+```
+
+Preprocessing the data
+```{r}
+#Removing the unnecessary columns
+df <- subset (df, select = -c(ID,Special.Pay,Departure.Date,Return.Date,Deposit.Date,Special.Pay,Early.RPL,Latest.RPL,Initial.System.Date,FirstMeeting,LastMeeting,SchoolGradeTypeLow,SchoolGradeTypeHigh))
+df
+#Matching two columns with similar data and removing one of the column
+df$SPR.Group.Revenue = as.numeric(df$SPR.Group.Revenue)
+df$Tuition = as.numeric(df$Tuition)
+str(df$Tuition)
+d <- ifelse(df$SPR.Group.Revenue==df$Tuition,"Yes","No")
+mutate(df,d)
+table(d)
+df <- subset(df, select = -c(SPR.Group.Revenue))
+
+df$Group.State <- gsub("Cayman Islands", "KY", df$Group.State)
+summary(df$Group.State)
+
+#Converting character into numeric variables
+df$FPP.to.School.enrollment=as.numeric(df$FPP.to.School.enrollment)
+df$DifferenceTraveltoLastMeeting = as.numeric(df$DifferenceTraveltoLastMeeting)
+df$DifferenceTraveltoFirstMeeting = as.numeric(df$DifferenceTraveltoFirstMeeting)
+
+#function for calculating the mode
+getmode <- function(v) {
+  uniqv <- unique(v)
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+#finding mode for categorical variables
+mode_from.grade <- getmode(df$From.Grade)
+mode_Poverty.Code <- getmode(df$Poverty.Code)
+mode_MDR.Low.Grade <- getmode(df$MDR.Low.Grade)
+mode_To.Grade <- getmode(df$To.Grade)
+mode_MDR.High.Grade <- getmode(df$MDR.High.Grade)
+mode_Income.Level <- getmode(df$Income.Level)
+mode_SchoolSizeIndicator <- getmode(df$SchoolSizeIndicator)
+
+#imputing NA for categorical variables
+df <- df%>% mutate(From.Grade = ifelse(From.Grade == "NA",mode_from.grade,From.Grade))%>%
+  mutate(To.Grade = ifelse(To.Grade == "NA",mode_To.Grade,To.Grade))%>%
+  mutate(MDR.High.Grade = ifelse(MDR.High.Grade == "NA",mode_MDR.High.Grade,MDR.High.Grade))
+  
+
+df$Poverty.Code[is.na(df$Poverty.Code)] <- "U"
+df$MDR.Low.Grade[is.na(df$MDR.Low.Grade)] <- mode_MDR.Low.Grade
+df$Income.Level[is.na(df$Income.Level)] <- mode_Income.Level
+df$SchoolSizeIndicator[is.na(df$SchoolSizeIndicator)] <- mode_SchoolSizeIndicator
+
+#Converting the character "NA" into 0
+df$DifferenceTraveltoFirstMeeting[is.na(df$DifferenceTraveltoFirstMeeting)] <- 0
+df$DifferenceTraveltoLastMeeting[is.na(df$DifferenceTraveltoLastMeeting)] <- 0
+df$FPP.to.School.enrollment[is.na(df$FPP.to.School.enrollment)] <- 0
+
+
+#finding mean for numerical variables
+mean_Total.School.Enrollment = mean(df$Total.School.Enrollment, na.rm=TRUE)
+mean_DifferenceTraveltoFirstMeeting = mean(df$DifferenceTraveltoFirstMeeting)
+mean_DifferenceTraveltoLastMeeting = mean(df$DifferenceTraveltoLastMeeting, na.rm=TRUE)
+mean_FPP.to.School.enrollment = mean(df$FPP.to.School.enrollment, na.rm=TRUE)
+
+#imputing NA for numerical variables
+df$Total.School.Enrollment[is.na(df$Total.School.Enrollment)] <- mean_Total.School.Enrollment
+
+df <- df %>% mutate(DifferenceTraveltoFirstMeeting = ifelse(DifferenceTraveltoFirstMeeting == 0,mean_DifferenceTraveltoFirstMeeting,DifferenceTraveltoFirstMeeting))%>%
+  mutate(DifferenceTraveltoLastMeeting = ifelse(DifferenceTraveltoLastMeeting == 0,mean_DifferenceTraveltoLastMeeting,DifferenceTraveltoLastMeeting))%>%
+  mutate(FPP.to.School.enrollment = ifelse(FPP.to.School.enrollment == 0,mean_FPP.to.School.enrollment,FPP.to.School.enrollment))
+
+view(df)
+
+
+#mutating various numeric columns to factor 
+df$Retained.in.2012. = as.factor(df$Retained.in.2012.)
+df$SingleGradeTripFlag = as.factor(df$SingleGradeTripFlag)
+df$ NumberOfMeetingswithParents = as.factor(df$ NumberOfMeetingswithParents)
+df$School.Sponsor = as.factor(df$School.Sponsor)
+df$Parent.Meeting.Flag = as.factor(df$Parent.Meeting.Flag)
+df$Is.Non.Annual. = as.factor(df$Is.Non.Annual.)
+
+#mutating all the character columns to factor
+colnames(df)
+df <- df %>% mutate_if(is.character,as.factor)
+str(df)
+
+correlation_table(data=data, target="Retained.in.2012.")
+
+
+
+```
+
+#EDA
+```{r}
+rf <- randomForest(Retained.in.2012. ~ ., data = data,
+                   mtry = sqrt(ncol(data)-1), ntree = 100,
+                   proximity = T, importance = T)
+print(rf)
+imp_variables<-importance(rf, type = 2)
+imp_variables
+# After constructing a random forest model and finding importance of the variable, we have decided to move forward with 34 variables that have the highest importance amongst all the other variables
+data<- subset(data, select = -c(Travel.Type, School.Type, Parent.Meeting.Flag, School.Sponsor, SPR.Product.Type, NumberOfMeetingswithParents,GroupGradeTypeHigh, MajorProgramCode))
+str(data)
+
+#scatter plots 
+library(car) # advanced scatter plots
+scatterplotMatrix(~Apps+Accept+Enroll+Top10perc+Top25perc+F.Undergrad+P.Under
+grad+Outstate+Room.Board+Books, data=College1, main="Correlations of Numeric
+Variables in the College Data")
+
+```
+
+
+```{r}
+#Creating a duplicate of the preprocessed data to build further models on
+data <- df
+```
+
+Performing 10 fold cross validation on the dataset
+```{r}
+#Decision Tree 
+set.seed(48)
+data <- data[sample(nrow(data)), ]
+k <- 10
+nmethod <- 1
+folds <- cut(seq(1,nrow(data)), breaks=k, labels=FALSE)
+model.err <- matrix(-1,k,nmethod, dimnames=list(paste0("Fold",1:k),c("Decision Tree")))
+model.err1 <- matrix(-1,k,nmethod, dimnames=list(paste0("Fold",1:k),c("Random Forest")))
+
+#CV
+for(i in 1:k){
+  testindexes <- which(folds == i, arr.ind = TRUE)
+  test<- data[testindexes, ]
+  train<- data[-testindexes, ]
+  tree <- rpart(Retained.in.2012.~.,data= train)
+  pred <- predict(tree, newdata=test, type="class")
+  model.err[i] <- mean(test$Retained.in.2012.!= pred)
+  tree2 <- randomForest(Retained.in.2012.~.,data= train,mtry = sqrt(ncol(data)-1), ntree = 200,         proximity=T,importance = T)
+  pred2<- predict(tree2, newdata=test, type="class")
+  model.err1[i] <- mean(test$Retained.in.2012.!= pred2)
+ 
+}
+mean(model.err)
+mean(model.err1)
+```
+
